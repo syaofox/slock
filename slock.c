@@ -6,6 +6,7 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <math.h>
 #include <grp.h>
 #include <pwd.h>
 #include <stdarg.h>
@@ -20,6 +21,7 @@
 #include <X11/keysym.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
+#include <X11/Xresource.h>
 
 #include "arg.h"
 #include "util.h"
@@ -48,6 +50,18 @@ struct xrandr {
 	int evbase;
 	int errbase;
 };
+
+enum resource_type {
+	STRING = 0,
+	INTEGER = 1,
+	FLOAT = 2
+};
+
+typedef struct {
+	char *name;
+	enum resource_type type;
+	void *dst;
+} ResourcePref;
 
 #include "config.h"
 
@@ -398,6 +412,57 @@ lockscreen(Display *dpy, struct xrandr *rr, int screen)
 	return NULL;
 }
 
+int
+resource_load(XrmDatabase db, char *name, enum resource_type rtype, void *dst)
+{
+	char **sdst = dst;
+	int *idst = dst;
+	float *fdst = dst;
+
+	char fullname[256];
+	char fullclass[256];
+	char *type;
+	XrmValue ret;
+
+	snprintf(fullname, sizeof(fullname), "%s.%s", "slock", name);
+	snprintf(fullclass, sizeof(fullclass), "%s.%s", "Slock", name);
+	fullname[sizeof(fullname) - 1] = fullclass[sizeof(fullclass) - 1] = '\0';
+
+	XrmGetResource(db, fullname, fullclass, &type, &ret);
+	if (ret.addr == NULL || strncmp("String", type, 64))
+		return 1;
+
+	switch (rtype) {
+	case STRING:
+		*sdst = ret.addr;
+		break;
+	case INTEGER:
+		*idst = strtoul(ret.addr, NULL, 10);
+		break;
+	case FLOAT:
+		*fdst = strtof(ret.addr, NULL);
+		break;
+	}
+	return 0;
+}
+
+void
+config_init(Display *dpy)
+{
+	char *resm;
+	XrmDatabase db;
+	ResourcePref *p;
+
+	XrmInitialize();
+	resm = XResourceManagerString(dpy);
+	if (!resm)
+		return;
+
+	db = XrmGetStringDatabase(resm);
+	for (p = resources; p < resources + LEN(resources); p++)
+		resource_load(db, p->name, p->type, p->dst);
+}
+
 static void
 usage(void)
 {
@@ -460,6 +525,8 @@ main(int argc, char **argv) {
 
 	if (!(dpy = XOpenDisplay(NULL)))
 		die("slock: cannot open display\n");
+
+	config_init(dpy);
 
 	/* drop privileges */
 	if (setgroups(0, NULL) < 0)
