@@ -1,6 +1,6 @@
 /* user and group to drop privileges to */
 static const char *user  = "nobody";
-static const char *group = "nogroup";
+static const char *group = "nobody";
 
 static const char *colorname[NUMCOLS] = {
 	[INIT] =   "#2E3440",
@@ -24,4 +24,4 @@ static const int failonclear = 1;
 static const char * message = "Suckless: Software that sucks less.";
 
 /* text size (must be a valid size) */
-static const char * font_name = "6x10";
+static const char * font_name = "6x13";
