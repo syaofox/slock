@@ -114,12 +114,15 @@ writemessage(Display *dpy, Window win, int screen)
 	fontinfo = XLoadQueryFont(dpy, font_name);
 
 	if (fontinfo == NULL) {
-		if (count_error == 0) {
-			fprintf(stderr, "slock: Unable to load font \"%s\"\n", font_name);
-			fprintf(stderr, "slock: Try listing fonts with 'slock -f'\n");
-			count_error++;
+		fontinfo = XLoadQueryFont(dpy, fallback_font_name);
+		if (fontinfo == NULL) {
+			if (count_error == 0) {
+				fprintf(stderr, "slock: Unable to load font \"%s\"\n", font_name);
+				fprintf(stderr, "slock: Try listing fonts with 'slock -f'\n");
+				count_error++;
+			}
+			return;
 		}
-		return;
 	}
 
 	tab_size = 8 * XTextWidth(fontinfo, " ", 1);
@@ -509,9 +512,12 @@ main(int argc, char **argv) {
 		    errno ? strerror(errno) : "user entry not found");
 	duid = pwd->pw_uid;
 	errno = 0;
-	if (!(grp = getgrnam(group)))
-		die("slock: getgrnam %s: %s\n", group,
-		    errno ? strerror(errno) : "group entry not found");
+	if (!(grp = getgrnam(group))) {
+		errno = 0;
+		if (!(grp = getgrnam(fallback_group)))
+			die("slock: getgrnam %s: %s\n", fallback_group,
+			    errno ? strerror(errno) : "group entry not found");
+	}
 	dgid = grp->gr_gid;
 
 #ifdef __linux__
